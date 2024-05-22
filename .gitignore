@@ -1,5 +1,4 @@
 .idea/
 volume/
 /terraform/.terraform
-**/*.tfstate.*
-**/*.tfstate
+**/*.tfstate*
