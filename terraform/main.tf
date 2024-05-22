@@ -18,7 +18,6 @@ provider "aws" {
 # s3_start
 resource "aws_s3_bucket" "s3_start" {
   bucket = "s3-start"
-
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "cleanup" {
@@ -36,6 +35,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "cleanup" {
 resource "aws_s3_bucket_acl" "s3_start_acl" {
   bucket = aws_s3_bucket.s3_start.id
   acl    = "private"
+}
+
+resource "aws_s3_bucket_object" "provision_source_files" {
+    bucket  = "s3://my-s3-bucket"
+    for_each = fileset("app/", "**/*.*")
+
+    key    = each.value
+    source = "app/${each.value}"
 }
 
 # s3_finish
@@ -70,12 +77,18 @@ resource "aws_lambda_permission" "allow_bucket" {
   source_arn    = aws_s3_bucket.s3_start.arn
 }
 
+data "archive_file" "zip_python_code" {
+  source_dir = "${path.module}/Python"
+  output_path = "${path.module}/Python/handler.zip"
+  type        = "zip"
+}
+
 resource "aws_lambda_function" "func" {
-  filename      = "lambda-copy.zip" ####################################################################
+  filename = "${path.module}/Python/handler.zip"
   function_name = "lambda-copy"
   role          = aws_iam_role.iam_for_lambda.arn
-  handler       = "exports.example"
-  runtime       = "go1.x"
+  handler       = "index.lambda_handler"
+  runtime       = "python3.12"
 }
 
 resource "aws_s3_bucket_notification" "bucket_notification" {
@@ -83,9 +96,7 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
 
   lambda_function {
     lambda_function_arn = aws_lambda_function.func.arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = "AWSLogs/"
-    filter_suffix       = ".log"
+    events              = ["s3:ObjectCreatedByPut:*"]
   }
 
   depends_on = [aws_lambda_permission.allow_bucket]
