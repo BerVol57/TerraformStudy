@@ -1,11 +1,15 @@
 import json
 import boto3
 
-src_bucket_path = 's3_start'
-src_file_name = 'source/source.txt'
-tgt_bucket_path = 's3_finish'
-tgt_file_name = 'target/target.txt'
-
 
 def lambda_handler(event, context):
-    print("I dunno")
+    copy_source = event['Records'][0]['s3']['object']['key']
+
+    s3_resource = boto3.resource("s3")
+
+    s3_resource.Object("s3_finish" "output/"+copy_source).copy_from(CopySource=copy_source)
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda!')
+    }

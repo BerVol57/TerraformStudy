@@ -64,39 +64,57 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-resource "aws_iam_role" "iam_for_lambda" {
-  name               = "iam_for_lambda"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+resource "aws_iam_role" "lambda_execution" {
+  name = "lambda-copy"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = ""
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
 }
 
+
+data "archive_file" "zip_python_code" {
+  source_dir = "${path.module}/Python"
+  output_path = "${path.module}/handler.zip"
+  type        = "zip"
+}
+
+resource "aws_lambda_function" "func" {
+  filename = "${path.module}/handler.zip"
+  function_name = "lambda-copy"
+  role          = aws_iam_role.lambda_execution.arn
+  handler       = "index.lambda_handler"
+  runtime       = "python3.12"
+}
+
+
+
+
 resource "aws_lambda_permission" "allow_bucket" {
-  statement_id  = "AllowExecutionFromS3Bucket"
+  statement_id  = "AllowS3InvokeLambda"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.func.arn
   principal     = "s3.amazonaws.com"
   source_arn    = aws_s3_bucket.s3_start.arn
 }
 
-data "archive_file" "zip_python_code" {
-  source_dir = "${path.module}/Python"
-  output_path = "${path.module}/Python/handler.zip"
-  type        = "zip"
-}
-
-resource "aws_lambda_function" "func" {
-  filename = "${path.module}/Python/handler.zip"
-  function_name = "lambda-copy"
-  role          = aws_iam_role.iam_for_lambda.arn
-  handler       = "index.lambda_handler"
-  runtime       = "python3.12"
-}
 
 resource "aws_s3_bucket_notification" "bucket_notification" {
   bucket = aws_s3_bucket.s3_start.id
 
   lambda_function {
     lambda_function_arn = aws_lambda_function.func.arn
-    events              = ["s3:ObjectCreatedByPut:*"]
+    events              = ["s3:ObjectCreated:"]
   }
 
   depends_on = [aws_lambda_permission.allow_bucket]
