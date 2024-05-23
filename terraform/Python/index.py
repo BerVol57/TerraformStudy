@@ -3,13 +3,19 @@ import boto3
 
 
 def lambda_handler(event, context):
-    copy_source = event['Records'][0]['s3']['object']['key']
+    # return f"This event: {event}"
+    s3 = boto3.resource('s3')
 
-    s3_resource = boto3.resource("s3")
+    src_bucket = s3.Bucket("s3-start")
+    dst_bucket = "s3-finish"
 
-    s3_resource.Object("s3_finish" "output/"+copy_source).copy_from(CopySource=copy_source)
+    for obj in src_bucket.objects.filter(Prefix=''):
+        # This prefix will got all the files, but you can also use:
+        # (Prefix='images/',Delimiter='/') for some specific folder
+        print(obj.key)
+        copy_source = {'Bucket': "s3-start", 'Key': obj.key}
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Hello from Lambda!')
-    }
+        # and here define the name of the object in the destination folder
+
+        dst_file_name = obj.key  # if you want to use the same name
+        s3.meta.client.copy(copy_source, dst_bucket, dst_file_name)
